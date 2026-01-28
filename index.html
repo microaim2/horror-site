@@ -26,7 +26,7 @@
     border:1px solid #ff2a2a;
     box-shadow:0 0 55px rgba(255,0,0,.35);
     position:relative;
-    margin-top: 32px;
+    margin-top:32px;
   }
 
   h1{
@@ -64,14 +64,14 @@
     min-height:52px;
   }
 
-  /* если не хочешь подсказки — просто удали эти div или закомментируй ниже display */
+  /* подсказки можешь убрать, удалив div.hint в HTML или включив display:none */
   .hint{
     margin-top:10px;
     font-size:12px;
     color:#aaa;
     text-align:center;
     user-select:none;
-    /* display:none; */ /* <- включи, если хочешь скрыть все подсказки */
+    /* display:none; */
   }
 
   /* ===== МИГАНИЕ НА КАЖДОМ ВОПРОСЕ ===== */
@@ -105,7 +105,7 @@
     100%{opacity:0}
   }
 
-  /* ===== SCREAMER с твоей картинкой ===== */
+  /* ===== SCREAMER (твоё изображение) ===== */
   #screamer{
     position:fixed;
     inset:0;
@@ -127,20 +127,39 @@
     75%{transform:translate(14px,16px)}
     100%{transform:translate(0)}
   }
+  #screamer::before{
+    content:"";
+    position:absolute;
+    inset:-20%;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,.08) 0px,
+      rgba(255,255,255,.08) 2px,
+      transparent 2px,
+      transparent 7px
+    );
+    opacity:.7;
+    animation: scan 0.45s linear infinite;
+    mix-blend-mode: screen;
+    pointer-events:none;
+  }
+  @keyframes scan{
+    from{ transform: translateY(-12%); }
+    to{ transform: translateY(12%); }
+  }
   #screamer img{
-    width:100%;
-    height:100%;
+    width:100vw;
+    height:100vh;
     object-fit:cover;
-    transform: scale(1.02);
     animation: zoom 0.18s infinite alternate;
-    filter: contrast(1.25) saturate(1.2);
+    filter: contrast(1.25) saturate(1.15);
   }
   @keyframes zoom{
     from{ transform: scale(1.02); }
     to{ transform: scale(1.08); }
   }
 
-  /* ===== END (красиво) ===== */
+  /* ===== END ===== */
   .final{
     color:#e8d6d6;
     font-size:14px;
@@ -237,21 +256,19 @@
     <h1>FINAL</h1>
     <div class="final" id="result"></div>
     <button id="resetBtn">RESET</button>
-    <div class="hint">сайт отслеживает тебя.</div>
+    <div class="hint">Это хоррор-история. В реальности сайт не отслеживает тебя.</div>
   </div>
 </div>
 
 <div id="flash"></div>
 
-<!-- SCREAMER (твоя картинка) -->
+<!-- SCREAMER -->
 <div id="screamer" aria-hidden="true">
-  <!-- Переименуй файл здесь, если нужно -->
-  <img src="screamer.jpg" alt="SCREAM">
+  <img id="screamerImg" src="screamer.jpg" alt="SCREAMER">
 </div>
 
-<!-- ТВОЙ КРИК (твоя mp3) -->
+<!-- SOUND -->
 <audio id="screamSound" preload="auto">
-  <!-- Переименуй файл здесь, если нужно -->
   <source src="scream.mp3" type="audio/mpeg">
 </audio>
 
@@ -320,6 +337,12 @@ const resetBtn = document.getElementById("resetBtn");
 const screamer = document.getElementById("screamer");
 const flash = document.getElementById("flash");
 const screamSound = document.getElementById("screamSound");
+const screamerImg = document.getElementById("screamerImg");
+
+// если картинка не найдена — покажем понятную надпись
+screamerImg.addEventListener("error", () => {
+  screamer.innerHTML = '<div style="color:#fff;font-size:22px;font-weight:900">IMAGE NOT FOUND<br>Check: screamer.jpg</div>';
+});
 
 /* =========================
    STATE
@@ -329,12 +352,10 @@ let answers = [];
 let qIndex = 0;
 let sessionQuestions = pickRandomQuestions(questionsPool, TOTAL_QUESTIONS);
 
-// скример: 1 раз, без предупреждения, случайно во время вопросов
 let screamScheduled = false;
 let screamTriggered = false;
 let screamTimer = null;
 
-// финальный скример (в конце)
 let finalScreamTimer = null;
 
 /* =========================
@@ -353,7 +374,6 @@ function ensureAudio(){
   }
 }
 
-// музыка (генерация)
 function startTenseMusic(){
   ensureAudio();
   if(musicOn) return;
@@ -418,14 +438,14 @@ function startTenseMusic(){
 }
 
 /* =========================
-   SCREAM SOUND (твой mp3)
+   SCREAM SOUND (mp3)
 ========================= */
 function playScream(){
-  // Это важный трюк: иногда браузер блокирует — поэтому “будим” аудио после клика ENTER
   try{
     screamSound.currentTime = 0;
     screamSound.volume = 1.0;
-    screamSound.play().catch(()=>{});
+    const p = screamSound.play();
+    if(p) p.catch(()=>{});
   }catch(e){}
 }
 
@@ -437,7 +457,6 @@ function setQuestion(){
   answerInput.value = "";
   answerInput.focus();
 
-  // МИГАНИЕ НА КАЖДОМ ВОПРОСЕ
   questionEl.classList.remove("flickerQ");
   void questionEl.offsetWidth;
   questionEl.classList.add("flickerQ");
@@ -448,8 +467,7 @@ function scheduleRandomScreamer(){
   if(screamScheduled) return;
   screamScheduled = true;
 
-  // 1 раз в случайный момент (6..20 секунд) во время вопросов
-  const delay = Math.floor(Math.random() * 14000) + 6000;
+  const delay = Math.floor(Math.random() * 14000) + 6000; // 6..20s
   screamTimer = setTimeout(() => {
     if(screamTriggered) return;
     if(!testEl.classList.contains("hidden")) triggerScreamer();
@@ -457,7 +475,6 @@ function scheduleRandomScreamer(){
 }
 
 function afterScreamerMessage(questionIndexSnapshot){
-  // после скримера: на 1 секунду "I SEE YOU"
   if(testEl.classList.contains("hidden")) return;
   if(qIndex !== questionIndexSnapshot) return;
 
@@ -474,6 +491,12 @@ function afterScreamerMessage(questionIndexSnapshot){
   }, 1000);
 }
 
+function hideScreamerOnly(){
+  flash.classList.remove("on");
+  screamer.classList.remove("show");
+  screamer.setAttribute("aria-hidden", "true");
+}
+
 function showScreamerOverlay(){
   flash.classList.add("on");
   screamer.classList.add("show");
@@ -481,9 +504,8 @@ function showScreamerOverlay(){
 
   playScream();
 
-  // держим 1.2 сек
   setTimeout(() => flash.classList.remove("on"), 1200);
-  setTimeout(() => hideScreamerOnly(), 1200);
+  setTimeout(() => hideScreamerOnly(), 2500); // дольше, чтобы точно увидеть
 }
 
 function triggerScreamer(){
@@ -491,8 +513,6 @@ function triggerScreamer(){
   const snapshot = qIndex;
 
   showScreamerOverlay();
-
-  // "I SEE YOU" после скримера на 1 секунду
   setTimeout(() => afterScreamerMessage(snapshot), 900);
 }
 
@@ -515,10 +535,9 @@ function startTest(){
   regEl.classList.add("hidden");
   testEl.classList.remove("hidden");
 
-  // музыка начинается после клика (браузер разрешает)
   startTenseMusic();
 
-  // “разбудим” HTML-audio после клика ENTER (иначе иногда блокируется)
+  // “разбудим” audio после клика ENTER
   try{
     screamSound.volume = 0;
     screamSound.play().then(()=>{
@@ -609,18 +628,11 @@ function finish(){
     </div>
   `;
 
-  // финальный скример — через 7–10 сек после появления финала
-  const finalDelay = Math.floor(Math.random() * 3000) + 7000;
+  const finalDelay = Math.floor(Math.random() * 3000) + 7000; // 7..10s
   clearTimeout(finalScreamTimer);
   finalScreamTimer = setTimeout(() => {
     showScreamerOverlay();
   }, finalDelay);
-}
-
-function hideScreamerOnly(){
-  flash.classList.remove("on");
-  screamer.classList.remove("show");
-  screamer.setAttribute("aria-hidden", "true");
 }
 
 function fakeReset(){
